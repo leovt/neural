@@ -10,77 +10,76 @@ def sigmoid_derivative(p):
 
 
 class NeuralNetwork:
-    def __init__(self, N0, N1, N2):
-        self.N0 = N0
-        self.N1 = N1
-        self.N2 = N2
-        self.weights1 = np.random.rand(N0, N1)
-        self.bias1 = np.random.rand(N1)
-        self.weights2 = np.random.rand(N1, N2)
-        self.bias2 = np.random.rand(N2)
+    def __init__(self, layers):
+        self.layers = layers
+
+        self.weights = [np.random.rand(N0, N1) for N0, N1 in zip(layers[:-1], layers[1:])]
+        self.biases = [np.random.rand(N1) for N1 in layers[1:]]
 
     def apply(self, input):
         M, M0 = input.shape
-        assert M0 == self.N0
+        assert M0 == self.layers[0]
 
         # forward
-        layer1 = sigmoid(np.dot(input, self.weights1) + self.bias1)
-        output = sigmoid(np.dot(layer1, self.weights2) + self.bias2)
-        return output
+        activation = input
+        for (w, b) in zip(self.weights, self.biases):
+            activation = sigmoid(np.dot(activation, w) + b)
+        return activation
 
     def train(self, input, y):
         M, M0 = input.shape
-        assert M0 == self.N0
+        assert M0 == self.layers[0]
         K, K0 = y.shape
-        assert K0 == self.N2
+        assert K0 == self.layers[-1]
         assert K == M
 
         # forward
-        layer1 = sigmoid(np.dot(input, self.weights1))
-        output = sigmoid(np.dot(layer1, self.weights2))
+        activations = [input]
+        for (w, b) in zip(self.weights, self.biases):
+            activations.append(sigmoid(np.dot(activations[-1], w) + b))
 
-        assert layer1.shape == (M, self.N1)
-        assert output.shape == (M, self.N2)
-
+        output = activations[-1]
         # backward
         # application of the chain rule to find derivative of the loss function with respect to weights2 and weights1
-        d_weights2 = np.dot(layer1.T, (2*(y - output) * sigmoid_derivative(output)))
-        assert d_weights2.shape == self.weights2.shape == (self.N1, self.N2)
-        d_bias2 = np.sum(2*(y - output) * sigmoid_derivative(output), axis=0)
-        assert d_bias2.shape == self.bias2.shape == (self.N2, )
 
-        d_weights1 = np.dot(input.T,  (np.dot(2*(y - output) * sigmoid_derivative(output), self.weights2.T) * sigmoid_derivative(layer1)))
-        assert d_weights1.shape == self.weights1.shape == (self.N0, self.N1)
-        d_bias1 = np.sum(np.dot(2*(y - output) * sigmoid_derivative(output), self.weights2.T) * sigmoid_derivative(layer1), axis=0)
-        assert d_bias1.shape == self.bias1.shape == (self.N1, )
+        d_cost = 2*(y - output)
 
-        # update the weights with the derivative (slope) of the loss function
-        self.weights1 += d_weights1
-        self.weights2 += d_weights2
-        self.bias1 += d_bias1
-        self.bias2 += d_bias2
+        for i, (w, b, layer_in, layer_out) in list(enumerate(zip(self.weights, self.biases, activations[:-1], activations[1:])))[::-1]:
+            d_w = np.dot(layer_in.T, d_cost * sigmoid_derivative(layer_out))
+            d_b = np.sum(            d_cost * sigmoid_derivative(layer_out), axis=0)
+
+            d_cost = np.dot(d_cost * sigmoid_derivative(layer_out), w.T)
+
+            self.weights[i] += d_w
+            self.biases[i] += d_b
 
         return output
 
+def main():
+    # Each row is a training example, each column is a feature  [X1, X2, X3]
+    x=np.array([[0,0,0],[0,0,1],[0,1,0],[0,1,1],
+                [1,0,0],[1,0,1],[1,1,0],[1,1,1]], dtype=float)
+    y=np.array([[1,0,0,0,0,0,0,0],
+                [0,1,0,0,0,0,0,0],
+                [0,0,1,0,0,0,0,0],
+                [0,0,0,1,0,0,0,0],
+                [0,0,0,0,1,0,0,0],
+                [0,0,0,0,0,1,0,0],
+                [0,0,0,0,0,0,1,0],
+                [0,0,0,0,0,0,0,1]], dtype=float)
 
-# Each row is a training example, each column is a feature  [X1, X2, X3]
-x=np.array(([0,0,1],[0,1,1],[1,0,1],[1,1,1],[1,0,1]), dtype=float)
-y=np.array(([0],[1],[1],[0],[1]), dtype=float)
+    nn = NeuralNetwork([3, 8])
+    np.set_printoptions(precision=3, suppress=True)
+    for i in range(500):
+        output = nn.train(x,y)
+        if i%100==99:
+            print (i+1, "Loss: ", np.mean(np.square(y - output)))
 
-nn = NeuralNetwork(3, 4, 1)
-for i in range(1500): # trains the NN 1,000 times
-    output = nn.train(x,y)
-    if i % 100 ==0:
-        print ("for iteration # " + str(i) + "\n")
-        print ("Input : \n" + str(x))
-        print ("Actual Output: \n" + str(y))
-        print ("Predicted Output: \n" + str(output))
-        print ("Loss: \n" + str(np.mean(np.square(y - output)))) # mean sum squared loss
-        print ("\n")
+    print ("Input : \n" + str(x))
+    print ("Actual Output: \n" + str(y))
+    print ("Predicted Output: \n" + str(output))
+    print ("Loss: \n" + str(np.mean(np.square(y - output)))) # mean sum squared loss
+    print ("\n")
 
-print(nn.apply(np.array(([0,0,0],[0,0,1],[0,1,0],[0,1,1],[1,0,0],[1,0,1],[1,1,0],[1,1,1]))))
-for k in ([0,0,0],[0,0,1],[0,1,0],[0,1,1],[1,0,0],[1,0,1],[1,1,0],[1,1,1]):
-    print(k, nn.apply(np.array((k,))))
-
-print(nn.weights1, nn.bias1)
-print(nn.weights2, nn.bias2)
+if __name__ == '__main__':
+    main()
