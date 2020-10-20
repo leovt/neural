@@ -13,8 +13,8 @@ class NeuralNetwork:
     def __init__(self, layers):
         self.layers = layers
 
-        self.weights = [np.random.rand(N0, N1) for N0, N1 in zip(layers[:-1], layers[1:])]
-        self.biases = [np.random.rand(N1) for N1 in layers[1:]]
+        self.weights = [np.random.rand(N0, N1)/N0 for N0, N1 in zip(layers[:-1], layers[1:])]
+        self.biases = [2*np.random.rand(N1)-1 for N1 in layers[1:]]
 
     def apply(self, input):
         M, M0 = input.shape
@@ -38,19 +38,33 @@ class NeuralNetwork:
         for (w, b) in zip(self.weights, self.biases):
             activations.append(sigmoid(np.dot(activations[-1], w) + b))
 
+
         output = activations[-1]
         # backward
         # application of the chain rule to find derivative of the loss function with respect to weights2 and weights1
 
         d_cost = 2*(y - output)
+        # print('Backprop')
+        # print('d_cost', d_cost)
 
         for i, (w, b, layer_in, layer_out) in list(enumerate(zip(self.weights, self.biases, activations[:-1], activations[1:])))[::-1]:
-            d_w = np.dot(layer_in.T, d_cost * sigmoid_derivative(layer_out))
-            d_b = np.sum(            d_cost * sigmoid_derivative(layer_out), axis=0)
+            # print('layer', i, d_cost * sigmoid_derivative(layer_out))
+            global T,U
+            T,U = (layer_in, sigmoid_derivative(layer_out))
+            d_w = layer_in[:,:,np.newaxis] * (d_cost * sigmoid_derivative(layer_out))[:,np.newaxis,:]
+            d_b = d_cost * sigmoid_derivative(layer_out)
+            # print('layer', i, 'd_w[:,14*29]', d_w[:,14*29])
+            # print('layer', i, 'd_b', d_b)
+
+            d_w = np.mean(d_w, axis=0)
+            d_b = np.mean(d_b, axis=0)
 
             d_cost = np.dot(d_cost * sigmoid_derivative(layer_out), w.T)
 
+            assert d_w.shape == self.weights[i].shape
             self.weights[i] += d_w
+            assert d_b.shape == self.biases[i].shape
+            # print('layer', i, d_b)
             self.biases[i] += d_b
 
         return output
