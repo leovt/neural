@@ -2,6 +2,29 @@ import struct
 import numpy as np
 from PIL import Image, ImageFont, ImageDraw
 
+import urllib
+import os
+import gzip
+
+def download_data():
+    if not os.path.exists('mnist'):
+        os.mkdir('mnist')
+    fnames = [
+        'train-labels-idx1-ubyte',
+        'train-images-idx3-ubyte',
+        't10k-images-idx3-ubyte',
+        't10k-labels-idx1-ubyte',
+    ]
+    for fname in fnames:
+        if not os.path.exists(f'mnist/{fname}'):
+            if not os.path.exists(f'mnist/{fname}.gz'):
+                print(f'http://yann.lecun.com/exdb/mnist/{fname}.gz')
+                urllib.request.urlretrieve(f'http://yann.lecun.com/exdb/mnist/{fname}.gz',
+                                           f'mnist/{fname}.gz')
+            with open(f'mnist/{fname}', 'wb') as f:
+                f.write(gzip.open(f'mnist/{fname}.gz', 'rb').read())
+
+
 def read_labels(fname):
     with open(fname, 'rb') as f:
         magic, count = struct.unpack('>ll', f.read(8))
@@ -30,7 +53,12 @@ def image_matrix(im_array):
 
 def labeled_image_array(images, labels, colors=None, max_width=800):
     n, im_h, im_w = images.shape
-    font = ImageFont.truetype(r'arial.ttf', 14)
+
+    try:
+        font = ImageFont.truetype(r'arial.ttf', 14)
+    except:
+        font = ImageFont.truetype(r'DejaVuSans.ttf', 14)
+
     uq_labels = set(l for lab in labels for l in lab)
     lbl_w = max(font.getsize(l)[0] for l in uq_labels)
     textheight = sum(font.getmetrics())
